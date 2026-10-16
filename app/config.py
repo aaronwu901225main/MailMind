@@ -1,4 +1,4 @@
-"""集中管理設定；絕不把 API key 寫在程式碼中。"""
+"""Central configuration. Keep secrets in local .env, never in source control."""
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -7,10 +7,16 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_ROOT / '.env')
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '').strip()
-GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite').strip()
+GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-3.5-flash-lite').strip()
 DATABASE_URL = os.getenv('DATABASE_URL', '').strip() or (
     f"sqlite:///{PROJECT_ROOT / 'data' / 'mailmind.db'}"
 )
+MAX_DAILY_SUMMARIES = int(os.getenv('MAX_DAILY_SUMMARIES', '10'))
+if MAX_DAILY_SUMMARIES < 1:
+    raise ValueError('MAX_DAILY_SUMMARIES must be >= 1')
 
-# 第一期只有本機健康檢查，LLM 測試透過 CLI 執行。
-# 尚未提供會公開消耗 API 額度的匿名 HTTP 端點。
+LINE_CHANNEL_SECRET = os.getenv('MAILMIND_LINE_CHANNEL_SECRET', '').strip()
+LINE_CHANNEL_ACCESS_TOKEN = os.getenv('MAILMIND_LINE_CHANNEL_ACCESS_TOKEN', '').strip()
+MAX_LINE_PUSHES_PER_MONTH = int(os.getenv('MAX_LINE_PUSHES_PER_MONTH', '150'))
+if MAX_LINE_PUSHES_PER_MONTH < 0:
+    raise ValueError('MAX_LINE_PUSHES_PER_MONTH must be >= 0')

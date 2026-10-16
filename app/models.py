@@ -60,10 +60,22 @@ class Summary(Base):
 
 class DeliveryLog(Base):
     __tablename__ = 'delivery_logs'
+    __table_args__ = (UniqueConstraint('email_id', 'user_id', 'channel', name='uq_email_user_channel'),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     email_id: Mapped[str] = mapped_column(ForeignKey('emails.id'), nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey('users.id'), nullable=False, index=True)
     channel: Mapped[str] = mapped_column(String(30), default='line', nullable=False)
     status: Mapped[str] = mapped_column(String(30), default='pending', nullable=False)
     attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LineLinkCode(Base):
+    """Short-lived, single-use account-to-LINE binding challenge."""
+    __tablename__ = 'line_link_codes'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.id'), nullable=False, index=True)
+    code_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
