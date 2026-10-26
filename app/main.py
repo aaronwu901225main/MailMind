@@ -12,11 +12,11 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title='MailMind', version='0.3.0', lifespan=lifespan)
+app = FastAPI(title='MailMind', version='0.4.0', lifespan=lifespan)
 app.include_router(ingest_router)
 app.include_router(line_router)
 
 
 @app.get('/health')
 def health():
-    return {'status': 'ok', 'service': 'MailMind', 'version': '0.3.0'}
+    return {'status': 'ok', 'service': 'MailMind', 'version': '0.4.0'}

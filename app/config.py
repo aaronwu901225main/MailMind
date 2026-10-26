@@ -20,3 +20,8 @@ LINE_CHANNEL_ACCESS_TOKEN = os.getenv('MAILMIND_LINE_CHANNEL_ACCESS_TOKEN', '').
 MAX_LINE_PUSHES_PER_MONTH = int(os.getenv('MAX_LINE_PUSHES_PER_MONTH', '150'))
 if MAX_LINE_PUSHES_PER_MONTH < 0:
     raise ValueError('MAX_LINE_PUSHES_PER_MONTH must be >= 0')
+
+# v0.4: Sensitive images are never sent to Gemini unless explicitly enabled.
+ENABLE_CLOUD_IMAGE_ANALYSIS = os.getenv('MAILMIND_ENABLE_IMAGE_ANALYSIS', 'false').lower() == 'true'
+# Each MCP stdio process can only access one pre-authorized email account.
+MCP_ACCOUNT_ID = os.getenv('MAILMIND_MCP_ACCOUNT_ID', '').strip()

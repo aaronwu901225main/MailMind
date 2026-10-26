@@ -79,3 +79,19 @@ class LineLinkCode(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class EmailAttachment(Base):
+    """Only extracted text/metadata: raw binary attachments are never persisted."""
+    __tablename__ = 'email_attachments'
+    __table_args__ = (UniqueConstraint('email_id', 'position', name='uq_email_attachment_position'),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    email_id: Mapped[str] = mapped_column(ForeignKey('emails.id'), nullable=False, index=True)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    filename: Mapped[str] = mapped_column(String(160), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(25), nullable=False)
+    extracted_text: Mapped[str] = mapped_column(Text, nullable=False, default='')
+    note: Mapped[str] = mapped_column(Text, nullable=False, default='')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

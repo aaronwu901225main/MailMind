@@ -7,6 +7,37 @@
 const MM_LOOKBACK_QUERY = 'in:inbox newer_than:2d';
 const MM_THREAD_LIMIT = 80;
 const MM_CACHE_LIMIT = 250;
+const MM_ATTACHMENT_MAX_COUNT = 3;
+const MM_ATTACHMENT_MAX_BYTES = 2 * 1024 * 1024;
+const MM_ATTACHMENTS_TOTAL_BYTES = 4 * 1024 * 1024;
+
+/** Only send supported attachment types; never send inline tracking pixels. */
+function mmAttachments_(message) {
+  const supported = /\.(pdf|docx|png|jpg|jpeg)$/i;
+  const attachments = [];
+  const notes = [];
+  let total = 0;
+  for (const item of message.getAttachments({includeInlineImages: false, includeAttachments: true})) {
+    const name = (item.getName() || 'attachment').slice(0, 160);
+    const size = item.getSize();
+    if (!supported.test(name)) {
+      notes.push(name + '：格式未支援');
+      continue;
+    }
+    if (size > MM_ATTACHMENT_MAX_BYTES || total + size > MM_ATTACHMENTS_TOTAL_BYTES ||
+        attachments.length >= MM_ATTACHMENT_MAX_COUNT) {
+      notes.push(name + '：超過大小或數量限制');
+      continue;
+    }
+    attachments.push({
+      filename: name,
+      mime_type: item.getContentType() || 'application/octet-stream',
+      data_base64: Utilities.base64Encode(item.getBytes())
+    });
+    total += size;
+  }
+  return {attachments: attachments, attachment_notes: notes.join('；').slice(0, 800)};
+} 
 
 function mmConfig_() {
   const props = PropertiesService.getScriptProperties();
@@ -29,8 +60,7 @@ function mmPost_(cfg, mail) {
     headers: { 'X-MailMind-Token': cfg.token },
     payload: JSON.stringify(mail),
     muteHttpExceptions: true,
-    followRedirects: false,
-    timeoutSeconds: 110
+    followRedirects: false
   });
   const code = response.getResponseCode();
   if (code < 200 || code >= 300) {
@@ -91,7 +121,8 @@ function mmScanInbox() {
           message_id: msg.getId(),
           sender: msg.getFrom().slice(0, 320),
           subject: msg.getSubject().slice(0, 500),
-          body: msg.getPlainBody().slice(0, 12000)
+          body: msg.getPlainBody().slice(0, 12000),
+          ...mmAttachments_(msg)
         });
         if (response.status === 'completed' || response.status === 'duplicate') {
           cache.push(msg.getId());

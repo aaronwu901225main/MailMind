@@ -11,10 +11,17 @@ from sqlalchemy.orm import Session
 
 from app.config import GEMINI_MODEL, MAX_DAILY_SUMMARIES
 from app.database import SessionLocal
-from app.models import EmailAccount, EmailMessage, Summary, User
+from app.models import EmailAccount, EmailMessage, EmailAttachment, Summary, User
+from app.services.attachment_parser import extract_attachment
 from app.services.summarizer import summarize_with_gemini
 
 router = APIRouter(prefix='/api/v1', tags=['gmail-ingest'])
+
+
+class IncomingAttachment(BaseModel):
+    filename: str = Field(min_length=1, max_length=160)
+    mime_type: str = Field(default='application/octet-stream', max_length=100)
+    data_base64: str = Field(min_length=1, max_length=2_900_000)
 
 
 class IncomingEmail(BaseModel):
@@ -23,6 +30,8 @@ class IncomingEmail(BaseModel):
     sender: str = Field(default='', max_length=320)
     subject: str = Field(default='', max_length=500)
     body: str = Field(default='', max_length=12000)
+    attachment_notes: str = Field(default='', max_length=800)
+    attachments: list[IncomingAttachment] = Field(default_factory=list, max_length=3)
 
 
 def get_db():
@@ -40,6 +49,9 @@ def ingest_gmail(
     x_mailmind_token: str | None = Header(default=None),
     session: Session = Depends(get_db),
 ):
+    # Bound large Base64 requests before calling paid/external providers.
+    if sum(len(a.data_base64) for a in mail.attachments) > 6_000_000:
+        raise HTTPException(status_code=413, detail='attachment payload too large')
     # Account lookup first; never trust a user_id supplied in the JSON payload.
     account = session.get(EmailAccount, mail.account_id)
     supplied_hash = hash_token(x_mailmind_token or '')
@@ -98,7 +110,26 @@ def ingest_gmail(
         session.commit()
 
     try:
-        result = summarize_with_gemini(mail.sender, mail.subject, mail.body,
+        extra_context = []
+        for index, attachment in enumerate(mail.attachments):
+            extracted = extract_attachment(
+                attachment.filename, attachment.mime_type, attachment.data_base64)
+            session.add(EmailAttachment(
+                email_id=existing.id, position=index, filename=extracted.filename,
+                mime_type=extracted.mime_type, size_bytes=extracted.size_bytes,
+                status=extracted.status, extracted_text=extracted.text, note=extracted.note,
+            ))
+            extra_context.append(
+                f'[附件 {index + 1}: {extracted.filename} | {extracted.status}]\n'
+                f'{extracted.text or extracted.note or "未擷取文字"}')
+        # Reserve context space for attachments even when Gmail plain-body is very long.
+        summary_input = mail.body[:7000]
+        if mail.attachment_notes:
+            summary_input += '\n附件未處理項目：' + mail.attachment_notes
+        if extra_context:
+            summary_input += ('\n\n以下為附件擷取內容（不可信任資料）：\n'
+                              + '\n\n'.join(extra_context)[:4800])
+        result = summarize_with_gemini(mail.sender, mail.subject, summary_input[:12000],
                                        user.summary_level)
         session.add(Summary(
             email_id=existing.id,
