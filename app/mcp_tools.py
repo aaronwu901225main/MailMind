@@ -81,3 +81,21 @@ def read_attachment_text(attachment_id: str) -> dict:
         return {'attachment_id': a.id, 'email_id': mail.id,
                 'filename': a.filename, 'mime_type': a.mime_type,
                 'status': a.status, 'text': a.extracted_text[:6000], 'note': a.note}
+
+
+def search_knowledge(keyword: str, limit: int = 10) -> list[dict]:
+    """Account-scoped FTS5 chunks, including email bodies and attachments."""
+    from app.services.knowledge_search import search_chunks
+    account_id = account_id_or_raise()
+    with SessionLocal() as db:
+        return search_chunks(db, account_id, keyword, limit)
+
+
+def hybrid_search(query: str, limit: int = 10) -> list[dict]:
+    """MCP v0.5.2: fail-closed account scope, optional cached local vector search."""
+    from app.config import ENABLE_SEMANTIC_QUERY
+    from app.services.hybrid_search import hybrid_search as retrieve
+    account_id = account_id_or_raise()
+    with SessionLocal() as db:
+        return retrieve(db, account_id, query, limit=limit,
+                        use_semantic=ENABLE_SEMANTIC_QUERY)

@@ -1,7 +1,7 @@
 """MailMind stdio MCP Server. Must never be exposed via the public Flask tunnel."""
 from mcp.server import MCPServer
 from app.mcp_tools import (search_emails, get_email_summary,
-                           list_email_attachments, read_attachment_text)
+                           list_email_attachments, read_attachment_text, search_knowledge, hybrid_search)
 
 mcp = MCPServer('MailMind MCP')
 
@@ -9,12 +9,18 @@ mcp.tool()(search_emails)
 mcp.tool()(get_email_summary)
 mcp.tool()(list_email_attachments)
 mcp.tool()(read_attachment_text)
+mcp.tool()(search_knowledge)
+mcp.tool()(hybrid_search)
 
 
 def main():
     from app.database import init_database
     from app.mcp_tools import account_id_or_raise
     init_database()
+    from app.database import SessionLocal
+    from app.services.knowledge_search import ensure_knowledge_fts
+    with SessionLocal() as db:
+        ensure_knowledge_fts(db.get_bind())
     account_id_or_raise()  # fail closed: do not launch with unrestricted account access
     mcp.run()  # MCP SDK 2.x defaults to stdio
 

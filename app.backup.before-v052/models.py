@@ -60,10 +60,60 @@ class Summary(Base):
 
 class DeliveryLog(Base):
     __tablename__ = 'delivery_logs'
+    __table_args__ = (UniqueConstraint('email_id', 'user_id', 'channel', name='uq_email_user_channel'),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     email_id: Mapped[str] = mapped_column(ForeignKey('emails.id'), nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey('users.id'), nullable=False, index=True)
     channel: Mapped[str] = mapped_column(String(30), default='line', nullable=False)
     status: Mapped[str] = mapped_column(String(30), default='pending', nullable=False)
     attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LineLinkCode(Base):
+    """Short-lived, single-use account-to-LINE binding challenge."""
+    __tablename__ = 'line_link_codes'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.id'), nullable=False, index=True)
+    code_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class EmailAttachment(Base):
+    """Only extracted text/metadata: raw binary attachments are never persisted."""
+    __tablename__ = 'email_attachments'
+    __table_args__ = (UniqueConstraint('email_id', 'position', name='uq_email_attachment_position'),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    email_id: Mapped[str] = mapped_column(ForeignKey('emails.id'), nullable=False, index=True)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    filename: Mapped[str] = mapped_column(String(160), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(25), nullable=False)
+    extracted_text: Mapped[str] = mapped_column(Text, nullable=False, default='')
+    note: Mapped[str] = mapped_column(Text, nullable=False, default='')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class KnowledgeChunk(Base):
+    """Account-scoped searchable text derived from Email / Summary / Attachment.
+
+    SQLite integer primary keys are used as FTS5 rowids. The model deliberately
+    stores no original attachment binaries, API tokens, or filesystem paths.
+    """
+    __tablename__ = 'knowledge_chunks'
+    __table_args__ = (
+        UniqueConstraint('email_id', 'source_type', 'source_id', 'chunk_index',
+                         name='uq_knowledge_chunk_source_position'),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_id: Mapped[str] = mapped_column(ForeignKey('email_accounts.id'), nullable=False, index=True)
+    email_id: Mapped[str] = mapped_column(ForeignKey('emails.id'), nullable=False, index=True)
+    source_type: Mapped[str] = mapped_column(String(24), nullable=False)  # metadata/body/summary/attachment
+    source_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

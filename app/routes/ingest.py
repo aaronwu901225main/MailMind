@@ -1,6 +1,7 @@
 """Authenticated inbound Gmail events for a specific registered account."""
 import hashlib
 import hmac
+import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
@@ -15,6 +16,7 @@ from app.models import EmailAccount, EmailMessage, EmailAttachment, Summary, Use
 from app.services.attachment_parser import extract_attachment
 from app.services.summarizer import summarize_with_gemini
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix='/api/v1', tags=['gmail-ingest'])
 
 
@@ -147,5 +149,16 @@ def ingest_gmail(
             session.commit()
         # Do not leak raw provider errors or email content to public clients.
         raise HTTPException(status_code=502, detail='summary provider failed; retry later')
+
+    # Knowledge indexing is isolated from the Gmail/LLM transaction: any indexing
+    # error must never block incoming mail or trigger a second Gemini call.
+    try:
+        from app.services.knowledge_index import index_email
+        stored_mail = session.get(EmailMessage, existing.id)
+        index_email(session, stored_mail, body=mail.body)
+        session.commit()
+    except Exception:
+        session.rollback()
+        logger.exception('Knowledge indexing failed for email %s; backfill can retry', existing.id)
 
     return {'status': 'completed', 'email_id': existing.id, 'summary': result}

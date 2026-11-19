@@ -1,0 +1,4 @@
+# Optional local CPU embeddings. Keep requirements.txt unchanged for FastAPI.
+# Install this only in a permitted compute environment or personal machine.
+numpy>=1.24,<3
+sentence-transformers>=3.0,<7

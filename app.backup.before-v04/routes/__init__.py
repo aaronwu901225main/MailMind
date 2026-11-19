@@ -1,1 +1,0 @@
-"""MailMind API routes."""

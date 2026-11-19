@@ -9,14 +9,18 @@ from app.routes.line_webhook import router as line_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_database()
+    from app.database import SessionLocal
+    from app.services.knowledge_search import ensure_knowledge_fts
+    with SessionLocal() as db:
+        ensure_knowledge_fts(db.get_bind())
     yield
 
 
-app = FastAPI(title='MailMind', version='0.4.0', lifespan=lifespan)
+app = FastAPI(title='MailMind', version='0.5.2', lifespan=lifespan)
 app.include_router(ingest_router)
 app.include_router(line_router)
 
 
 @app.get('/health')
 def health():
-    return {'status': 'ok', 'service': 'MailMind', 'version': '0.4.0'}
+    return {'status': 'ok', 'service': 'MailMind', 'version': '0.5.2'}
