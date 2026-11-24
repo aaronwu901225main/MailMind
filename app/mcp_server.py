@@ -1,7 +1,8 @@
 """MailMind stdio MCP Server. Must never be exposed via the public Flask tunnel."""
 from mcp.server import MCPServer
 from app.mcp_tools import (search_emails, get_email_summary,
-                           list_email_attachments, read_attachment_text, search_knowledge, hybrid_search)
+                           list_email_attachments, read_attachment_text, search_knowledge, hybrid_search,
+                           search_relevant_emails)
 
 mcp = MCPServer('MailMind MCP')
 
@@ -11,6 +12,7 @@ mcp.tool()(list_email_attachments)
 mcp.tool()(read_attachment_text)
 mcp.tool()(search_knowledge)
 mcp.tool()(hybrid_search)
+mcp.tool()(search_relevant_emails)
 
 
 def main():

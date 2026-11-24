@@ -25,3 +25,12 @@ if MAX_LINE_PUSHES_PER_MONTH < 0:
 ENABLE_CLOUD_IMAGE_ANALYSIS = os.getenv('MAILMIND_ENABLE_IMAGE_ANALYSIS', 'false').lower() == 'true'
 # Each MCP stdio process can only access one pre-authorized email account.
 MCP_ACCOUNT_ID = os.getenv('MAILMIND_MCP_ACCOUNT_ID', '').strip()
+
+# v0.5.2: Local-only vector search. No model download or inference at API startup.
+EMBEDDING_MODEL = os.getenv('MAILMIND_EMBEDDING_MODEL', 'intfloat/multilingual-e5-small').strip()
+ENABLE_SEMANTIC_QUERY = os.getenv('MAILMIND_ENABLE_SEMANTIC_QUERY', 'false').strip().lower() == 'true'
+VECTOR_SEARCH_CANDIDATES = min(5000, max(10, int(os.getenv('MAILMIND_VECTOR_CANDIDATES', '2000'))))
+
+# v0.5.2.1: Explicit opt-in. MCP never sends private email snippets to Gemini
+# unless this is enabled; the local CLI requires --rerank separately.
+ENABLE_GEMINI_RERANK = os.getenv('MAILMIND_ENABLE_GEMINI_RERANK', 'false').strip().lower() == 'true'

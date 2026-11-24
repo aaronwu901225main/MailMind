@@ -128,3 +128,23 @@ class KnowledgeEmbedding(Base):
     dimension: Mapped[int] = mapped_column(Integer, nullable=False)
     vector: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LineAgentJob(Base):
+    """Durable, idempotent LINE question queue. Never stores raw credentials."""
+    __tablename__ = 'line_agent_jobs'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    # LINE webhookEventId/message.id is reduced to a SHA256 identifier.
+    event_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.id'), nullable=False, index=True)
+    account_id: Mapped[str] = mapped_column(ForeignKey('email_accounts.id'), nullable=False, index=True)
+    line_user_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    question: Mapped[str] = mapped_column(String(400), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default='pending')
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    result_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

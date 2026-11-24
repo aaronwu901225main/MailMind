@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from app.database import init_database
 from app.routes.ingest import router as ingest_router
 from app.routes.line_webhook import router as line_router
+from app.routes.line_agent import router as line_agent_router
 
 
 @asynccontextmanager
@@ -16,11 +17,12 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title='MailMind', version='0.5.2', lifespan=lifespan)
+app = FastAPI(title='MailMind', version='0.5.3', lifespan=lifespan)
 app.include_router(ingest_router)
 app.include_router(line_router)
+app.include_router(line_agent_router)
 
 
 @app.get('/health')
 def health():
-    return {'status': 'ok', 'service': 'MailMind', 'version': '0.5.2'}
+    return {'status': 'ok', 'service': 'MailMind', 'version': '0.5.3'}

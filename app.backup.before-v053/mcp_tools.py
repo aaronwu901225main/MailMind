@@ -89,3 +89,28 @@ def search_knowledge(keyword: str, limit: int = 10) -> list[dict]:
     account_id = account_id_or_raise()
     with SessionLocal() as db:
         return search_chunks(db, account_id, keyword, limit)
+
+
+def hybrid_search(query: str, limit: int = 10) -> list[dict]:
+    """MCP v0.5.2: fail-closed account scope, optional cached local vector search."""
+    from app.config import ENABLE_SEMANTIC_QUERY
+    from app.services.hybrid_search import hybrid_search as retrieve
+    account_id = account_id_or_raise()
+    with SessionLocal() as db:
+        return retrieve(db, account_id, query, limit=limit,
+                        use_semantic=ENABLE_SEMANTIC_QUERY)
+
+
+def search_relevant_emails(query: str, limit: int = 5) -> list[dict]:
+    """Account-scoped email-level retrieval; optional explicitly-enabled rerank.
+
+    'unjudged' means merely retrieved, NOT verified relevant. Avoid publishing
+    the MCP server over Cloudflare or accepting an account_id from the model.
+    """
+    from app.config import ENABLE_GEMINI_RERANK, ENABLE_SEMANTIC_QUERY
+    from app.services.relevance_search import search_relevant_emails as retrieve
+    account_id = account_id_or_raise()
+    with SessionLocal() as db:
+        return retrieve(db, account_id, query, limit=limit,
+                        use_semantic=ENABLE_SEMANTIC_QUERY,
+                        rerank=ENABLE_GEMINI_RERANK)
