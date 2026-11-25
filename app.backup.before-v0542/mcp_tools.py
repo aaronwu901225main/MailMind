@@ -114,3 +114,40 @@ def search_relevant_emails(query: str, limit: int = 5) -> list[dict]:
         return retrieve(db, account_id, query, limit=limit,
                         use_semantic=ENABLE_SEMANTIC_QUERY,
                         rerank=ENABLE_GEMINI_RERANK)
+
+
+def search_events(event_type: str = 'transaction', start_date: str = '',
+                  end_date: str = '', limit: int = 20) -> list[dict]:
+    """Read verified events only; bounded, account scoped, no arbitrary SQL."""
+    from app.services.event_analytics import search_events as query
+    account_id = account_id_or_raise()
+    with SessionLocal() as db:
+        return query(db, account_id, event_type=event_type,
+                     start_date=start_date or None, end_date=end_date or None,
+                     limit=limit)
+
+
+def aggregate_events(event_type: str, start_date: str, end_date: str,
+                     status: str = 'purchase') -> dict:
+    """Exact SQL statistics over verified events; totals separated by currency."""
+    from app.services.event_analytics import aggregate_events as query
+    account_id = account_id_or_raise()
+    with SessionLocal() as db:
+        return query(db, account_id, event_type=event_type,
+                     start_date=start_date, end_date=end_date, status=status)
+
+
+def get_event_detail(event_id: str) -> dict:
+    """Inspect the verified or review event and its actual source evidence."""
+    from app.services.event_analytics import get_event_detail as query
+    account_id = account_id_or_raise()
+    with SessionLocal() as db:
+        return query(db, account_id, event_id)
+
+
+def get_extraction_coverage() -> dict:
+    """Account-scoped audited extraction attempts, not proof of completeness."""
+    from app.services.event_analytics import get_extraction_coverage as query
+    account_id = account_id_or_raise()
+    with SessionLocal() as db:
+        return query(db, account_id)

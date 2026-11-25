@@ -128,3 +128,74 @@ class KnowledgeEmbedding(Base):
     dimension: Mapped[int] = mapped_column(Integer, nullable=False)
     vector: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LineAgentJob(Base):
+    """Durable, idempotent LINE question queue. Never stores raw credentials."""
+    __tablename__ = 'line_agent_jobs'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    # LINE webhookEventId/message.id is reduced to a SHA256 identifier.
+    event_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.id'), nullable=False, index=True)
+    account_id: Mapped[str] = mapped_column(ForeignKey('email_accounts.id'), nullable=False, index=True)
+    line_user_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    question: Mapped[str] = mapped_column(String(400), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default='pending')
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    result_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class StructuredEvent(Base):
+    """A source-backed, account-scoped typed event; never model-generated SQL.
+
+    Only validation_status='verified' records are eligible for numeric aggregates.
+    The opaque payload keeps future schema extensions independent from migrations.
+    """
+    __tablename__ = 'structured_events'
+    __table_args__ = (
+        UniqueConstraint('account_id', 'email_id', 'event_fingerprint',
+                         name='uq_structured_event_per_email'),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    account_id: Mapped[str] = mapped_column(ForeignKey('email_accounts.id'), index=True, nullable=False)
+    email_id: Mapped[str] = mapped_column(ForeignKey('emails.id'), index=True, nullable=False)
+    source_chunk_id: Mapped[int] = mapped_column(ForeignKey('knowledge_chunks.id'), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    event_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    occurred_on: Mapped[str | None] = mapped_column(String(10), nullable=True, index=True)
+    amount_minor: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    event_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_quote: Mapped[str] = mapped_column(Text, nullable=False)
+    extraction_method: Mapped[str] = mapped_column(String(20), nullable=False)
+    validation_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class EventExtractionRun(Base):
+    """Audit/coverage record for an attempted extraction from one email."""
+    __tablename__ = 'event_extraction_runs'
+    __table_args__ = (
+        UniqueConstraint('account_id', 'email_id', 'extractor_version', 'source_digest', 'mode',
+                         name='uq_event_extraction_run'),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    account_id: Mapped[str] = mapped_column(ForeignKey('email_accounts.id'), nullable=False, index=True)
+    email_id: Mapped[str] = mapped_column(ForeignKey('emails.id'), nullable=False, index=True)
+    extractor_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    source_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    mode: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    verified_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    review_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    reason_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

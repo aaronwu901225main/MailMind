@@ -34,3 +34,11 @@ VECTOR_SEARCH_CANDIDATES = min(5000, max(10, int(os.getenv('MAILMIND_VECTOR_CAND
 # v0.5.2.1: Explicit opt-in. MCP never sends private email snippets to Gemini
 # unless this is enabled; the local CLI requires --rerank separately.
 ENABLE_GEMINI_RERANK = os.getenv('MAILMIND_ENABLE_GEMINI_RERANK', 'false').strip().lower() == 'true'
+
+# v0.5.3: Deliberately off until the user opts into cloud email Q&A.
+AGENT_ENABLED = os.getenv('MAILMIND_AGENT_ENABLED', 'false').strip().lower() == 'true'
+AGENT_ALLOW_CLOUD_EMAIL = os.getenv('MAILMIND_AGENT_ALLOW_CLOUD_EMAIL', 'false').strip().lower() == 'true'
+AGENT_USE_SEMANTIC = os.getenv('MAILMIND_AGENT_USE_SEMANTIC', 'false').strip().lower() == 'true'
+AGENT_DAILY_LIMIT = max(1, min(20, int(os.getenv('MAILMIND_AGENT_DAILY_LIMIT', '5'))))
+AGENT_MONTHLY_PUSH_LIMIT = max(0, min(100, int(os.getenv('MAILMIND_AGENT_MONTHLY_PUSH_LIMIT', '20'))))
+AGENT_MAX_QUEUE = max(1, min(100, int(os.getenv('MAILMIND_AGENT_MAX_QUEUE', '20'))))

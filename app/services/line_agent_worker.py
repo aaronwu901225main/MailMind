@@ -24,6 +24,7 @@ from app.database import SessionLocal
 from app.models import EmailMessage, KnowledgeChunk, LineAgentJob
 from app.services.agent_privacy import redact_for_cloud
 from app.services.line_agent_queue import quota_ok
+from app.services.agent_query_router import route_question, format_spending_answer
 
 logger = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parents[2]
@@ -72,6 +73,35 @@ async def retrieve_mcp(account_id: str, question: str) -> list[dict]:
         )
         return decode_tool_result(result)
 
+
+
+async def retrieve_analytics_mcp(account_id: str, plan) -> tuple[dict, dict]:
+    """Run account-bound read-only MCP analytics, not LLM-generated SQL.
+
+    This branch never sends financial evidence to Gemini and does not load E5.
+    """
+    if plan.kind != 'spending':
+        raise ValueError('invalid_analytics_plan')
+    from mcp import Client, StdioServerParameters
+    params = StdioServerParameters(
+        command=sys.executable, args=['-m', 'app.mcp_server'],
+        cwd=str(ROOT), env={'MAILMIND_MCP_ACCOUNT_ID': account_id,
+                            'MAILMIND_ENABLE_GEMINI_RERANK': 'false',
+                            'MAILMIND_ENABLE_SEMANTIC_QUERY': 'false'},
+    )
+    async with Client(params) as client:
+        aggregate = await asyncio.wait_for(client.call_tool(
+            'aggregate_events', {'event_type': 'transaction',
+                                 'start_date': plan.start_date,
+                                 'end_date': plan.end_date,
+                                 'status': 'purchase'}), timeout=40)
+        coverage = await asyncio.wait_for(client.call_tool(
+            'get_extraction_coverage', {}), timeout=40)
+    totals = decode_tool_result(aggregate)
+    stats = decode_tool_result(coverage)
+    if len(totals) != 1 or len(stats) != 1:
+        raise RuntimeError('mcp_invalid_analytics_result')
+    return totals[0], stats[0]
 
 def validate_evidence(account_id: str, retrieved: list[dict], max_emails: int = 3) -> list[dict]:
     """Re-fetch trusted evidence from SQLite, not the MCP/LLM's submitted text.
@@ -213,7 +243,8 @@ def claim_job() -> LineAgentJob | None:
         return db.get(LineAgentJob, candidate.id)
 
 
-async def process_one_job(*, retriever=None, answerer=None, sender=None) -> bool:
+async def process_one_job(*, retriever=None, answerer=None, sender=None,
+                          analytics_retriever=None) -> bool:
     """Returns False when queue empty; True if one job was attempted.
 
     Injected callbacks enable offline tests. Model calls never occur in webhook.
@@ -234,9 +265,17 @@ async def process_one_job(*, retriever=None, answerer=None, sender=None) -> bool
             raise RuntimeError('monthly_push_quota')
         result_text = job.result_text
         if not result_text:
-            candidates = await retriever(job.account_id, job.question)
-            trusted = validate_evidence(job.account_id, candidates)
-            result_text = answerer(job.question, trusted)
+            plan = route_question(job.question, now=job.created_at)
+            if plan.kind == 'spending':
+                analytics_retriever = analytics_retriever or retrieve_analytics_mcp
+                aggregate, coverage = await analytics_retriever(job.account_id, plan)
+                result_text = format_spending_answer(plan, aggregate, coverage)
+            elif plan.kind == 'clarify':
+                result_text = '無法安全統計：' + plan.reason
+            else:
+                candidates = await retriever(job.account_id, job.question)
+                trusted = validate_evidence(job.account_id, candidates)
+                result_text = answerer(job.question, trusted)
             with SessionLocal() as db:
                 live = db.get(LineAgentJob, job.id)
                 live.result_text = result_text

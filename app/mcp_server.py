@@ -2,7 +2,8 @@
 from mcp.server import MCPServer
 from app.mcp_tools import (search_emails, get_email_summary,
                            list_email_attachments, read_attachment_text, search_knowledge, hybrid_search,
-                           search_relevant_emails)
+                           search_relevant_emails, search_events, aggregate_events,
+                           get_event_detail, get_extraction_coverage)
 
 mcp = MCPServer('MailMind MCP')
 
@@ -13,6 +14,10 @@ mcp.tool()(read_attachment_text)
 mcp.tool()(search_knowledge)
 mcp.tool()(hybrid_search)
 mcp.tool()(search_relevant_emails)
+mcp.tool()(search_events)
+mcp.tool()(aggregate_events)
+mcp.tool()(get_event_detail)
+mcp.tool()(get_extraction_coverage)
 
 
 def main():

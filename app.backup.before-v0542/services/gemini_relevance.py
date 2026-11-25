@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 
 from app.config import GEMINI_API_KEY, GEMINI_MODEL
+from app.services.agent_privacy import redact_for_cloud
 
 
 def gemini_rerank(query: str, groups: list[dict]) -> list[dict]:
@@ -27,7 +28,7 @@ def gemini_rerank(query: str, groups: list[dict]) -> list[dict]:
     candidates = [
         {'email_id': g['email_id'], 'subject': g['subject'],
          'evidence': [{'chunk_id': e['chunk_id'], 'source': e['source_type'],
-                       'text': e['text'][:900]} for e in g['evidence'][:2]]}
+                       'text': redact_for_cloud(e['text'], 900)} for e in g['evidence'][:2]]}
         for g in groups[:10]
     ]
     policy = (
@@ -42,7 +43,7 @@ def gemini_rerank(query: str, groups: list[dict]) -> list[dict]:
         '只有 relevant/partial 才提供該候選下支持判斷的 chunk_id，'
         'irrelevant 使用空陣列。只能引用提供的 email_id 和 chunk_id，不要編造。'
     )
-    request = {'question': query[:500], 'candidate_emails': candidates}
+    request = {'question': redact_for_cloud(query, 500), 'candidate_emails': candidates}
     client = genai.Client(api_key=GEMINI_API_KEY)
     try:
         response = client.models.generate_content(
